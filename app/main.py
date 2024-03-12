@@ -1,9 +1,11 @@
-import json
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import pymongo
 
 app = FastAPI()
+client = pymongo.MongoClient("mongodb://admin:password@mongo:27017/")
+db = client["url_shortener"]
+collection = db["links"]
 
 
 class Link(BaseModel):
@@ -12,21 +14,17 @@ class Link(BaseModel):
 
 @app.post("/shorten/")
 async def shorten_url(link: Link):
-    with open("links.json", "r") as file:
-        links = json.load(file)
-    short_id = len(links) + 1
-    links[str(short_id)] = link.original_url
-    with open("links.json", "w") as file:
-        json.dump(links, file)
+    doc = {"original_url": link.original_url}
+    result = collection.insert_one(doc)
+    short_id = str(result.inserted_id)
     return {"short_id": short_id}
 
 
 @app.get("/redirect/{short_id}/")
-async def redirect(short_id: int):
-    with open("links.json", "r") as file:
-        links = json.load(file)
-    original_url = links.get(str(short_id))
-    if original_url:
+async def redirect(short_id: str):
+    doc = collection.find_one({"_id": short_id})
+    if doc:
+        original_url = doc["original_url"]
         return {"redirect_url": original_url}
     else:
         raise HTTPException(status_code=404, detail="Link not found")
