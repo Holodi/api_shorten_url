@@ -22,7 +22,10 @@ async def shorten_url(link: Link):
 
 @app.get("/redirect/{short_id}/")
 async def redirect(short_id: str):
-    doc = collection.find_one({"_id": short_id})
+    doc = collection.find_one_and_update(
+        {"_id": short_id},
+        {"$inc": {"click_count": 1}}
+    )
     if doc:
         original_url = doc["original_url"]
         return {"redirect_url": original_url}
@@ -33,3 +36,13 @@ async def redirect(short_id: str):
 @app.get("/")
 async def homepage():
     return {"message": "Welcome to the URL shortener service"}
+
+
+@app.get("/clicks/{short_id}/")
+async def get_click_count(short_id: str):
+    doc = collection.find_one({"_id": short_id})
+    if doc:
+        click_count = doc.get("click_count", 0)
+        return {"click_count": click_count}
+    else:
+        raise HTTPException(status_code=404, detail="Link not found")
